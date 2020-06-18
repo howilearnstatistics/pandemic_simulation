@@ -81,9 +81,16 @@
       mainPanel(
         # Output: Plot
        # plotlyOutput("summary")
-        plotlyOutput('SRF'),
-        plotlyOutput('IHE'),
-        plotlyOutput('IHD_new_case')
+        tabsetPanel(type = "tabs",
+                    tabPanel("Summary", plotlyOutput('SRF'),
+                                        plotlyOutput('IHE'),
+                                        plotlyOutput('IHD_new_case')),
+                    tabPanel("Infected"),
+                    tabPanel("Hospitalized"),
+                    tabPanel("Fatality"),
+                    tabPanel("Statistics")
+                    
+        )
       )
     )
   )
