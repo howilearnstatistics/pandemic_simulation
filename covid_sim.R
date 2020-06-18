@@ -85,11 +85,8 @@
                     tabPanel("Summary", plotlyOutput('SRF'),
                                         plotlyOutput('IHE'),
                                         plotlyOutput('IHD_new_case')),
-                    tabPanel("Infected", plotlyOutput("I")),
-                    tabPanel("Hospitalized"),
-                    tabPanel("Fatality"),
-                    tabPanel("Statistics")
-                    
+                    tabPanel("Statistics", plotlyOutput("pie")),
+                    tabPanel("Death rate", plotlyOutput("death_rate"))
         )
       )
     )
@@ -238,6 +235,34 @@
        ax = -20,
        ay = -40
      )
+     #
+     x_death_rate = list(title = "Time (day)",
+                         titlefont = f)
+     y_death_rate = list(title = "Death rate",
+                         titlefont = f)
+     x_hospitalized = list(title = "Time (day)",
+                           titlefont = f)
+     y_hospitalized = list(title = "Active Cases",
+                           titlefont = f)
+     lockdown_hospitalized = list(
+       x = c(x_0(), x_1()),
+       y = c(H[x_0()], H[x_1()]),
+       text = c("Lockdown start", "Lockdown end"),
+       xref = "x",
+       yref = "y",
+       showarrow = TRUE,
+       arrowhead = 7,
+       ax = c(-20, 20),
+       ay = c(-40, 40))
+     #label and value for pie charts
+     population_label = c("Infected", "Healthy")
+     population_value = c(round(I_cumulate), round(N() - I_cumulate))
+     
+     infected_label = c("Hospitalized", "Recovered")
+     infected_value = c(round(H_cumulate), round(I_cumulate - H_cumulate))
+     
+     hospital_label = c("Fatality", "Recovered")
+     hospital_value = c(round(D_cumulate), round(H_cumulate - D_cumulate))
      #plot
      output$SRF = renderPlotly(plot_ly(x = ~t, 
                                y = ~S, 
@@ -328,28 +353,94 @@
                                                       yaxis = y_IHD_new_case,
                                                       annotations = lockdown_IHD_new_case,
                                                       hovermode = 'x'))
-     output$I = renderPlotly(subplot(plot_ly(x = ~t, 
-                                             y = ~I, 
-                                             name = "Infected",
-                                             type = 'scatter',
-                                             mode = 'lines',
-                                             line = list(width = 3,
-                                                         color = "#ffa500"),
-                                             hoverinfo = 'text',
-                                             text = ~paste('</br> Day: ', t,
-                                                           '</br> Number of Infected: ', round(I))),
-                                     plot_ly(x = ~t, 
-                                             y = ~I_difference, 
-                                             name = "Percent change",
-                                             type = 'bar',
-                                             hoverinfo = 'text',
-                                             text = ~paste('</br> Day: ', t,
-                                                           '</br> Percent change: ', round(I_difference, 2),"%")),
-                                     nrows = 2,
-                                     shareX = TRUE,
-                                     titleY = TRUE
-                                     )
-                             )
+     output$pie = renderPlotly(plotly(labels = population_label, 
+                                      values = population_value,
+                                      type = 'pie',
+                                      textinfo ='label+percent',
+                                      insidetextorientation ='radial',
+                                      hoverinfo = 'text',
+                                      text = ~paste('</br> Status: ', population_label,
+                                                    '</br> Number: ', population_value),
+                                      marker = list(colors = c("#ffa500","#0000ff"),
+                                      line = list(color = '#FFFFFF', 
+                                                  width = 1)),
+                                      domain = list(x = c(0, 0.6), 
+                                                    y = c(0, 1)),
+                                      showlegend = FALSE,
+                                      title = list(text = 'Breakdown of the Population', 
+                                                   y = 1, 
+                                                   font = f))
+                                        %>% add_pie(labels = infected_label, 
+                                                    values = infected_value, 
+                                                    textinfo ='label+percent',
+                                                    insidetextorientation ='radial',
+                                                    hoverinfo = 'text',
+                                                    text = ~paste('</br> Status: ', infected_label,
+                                                                     '</br> Number: ', infected_value),
+                                                    marker = list(colors = c("#00ffff","#008000"),
+                                                                     line = list(color = '#FFFFFF', 
+                                                                                 width = 1)),
+                                                    domain = list(x = c(0.6, 1), 
+                                                                  y = c(0.3, 1)),
+                                                    showlegend = FALSE,
+                                                    title = list(text = 'Breakdown of the Infected', 
+                                                                 y = 0.8, 
+                                                                    font = f))
+                                        %>% add_pie(labels = hospital_label, 
+                                                    values = hospital_value, 
+                                                    textinfo ='label+percent',
+                                                    insidetextorientation ='radial',
+                                                    hoverinfo = 'text',
+                                                    text = ~paste('</br> Status: ', hospital_label,
+                                                                  '</br> Number: ', hospital_value),
+                                                    marker = list(colors = c("#000000", "#008000"),
+                                                                  line = list(color = '#FFFFFF', 
+                                                                              width = 1)),
+                                                    domain = list(x = c(0.6, 1), 
+                                                                  y = c(0.0, 0.3)),
+                                                    showlegend = FALSE,
+                                                    title = list(text = 'Breakdown of the Hospitalised', 
+                                                                font = f)))
+     output$death_rate = renderPlotly(subplot(
+                                      plot_ly(x = ~t, 
+                                              y = ~alpha, 
+                                              type = "scatter",
+                                              mode = "line",
+                                              name = "Fatality probability (in hospital)",
+                                              line = list(width = 3),
+                                              hoverinfo = 'text',
+                                              text = ~paste('</br> Day: ', t,
+                                                            '</br> Fatality probability: ', round(alpha, 3)))
+                                              %>% layout(xaxis = x_death_rate,
+                                                         yaxis = y_death_rate,
+                                                         hovermode = 'x'),
+                                      plot_ly(x = ~t, 
+                                              y = ~H, 
+                                              name = "Hospitalised",
+                                              type = 'scatter',
+                                              mode = 'lines',
+                                              line = list(width = 3,
+                                                          color = "#00ffff"),
+                                              hoverinfo = 'text',
+                                              text = ~paste('</br> Day: ', t,
+                                                            '</br> Hospitalised: ', round(H)))
+                                      %>% layout(xaxis = x_hospitalized,
+                                                 yaxis = y_hospitalized,
+                                                 hovermode = 'x',
+                                                 annotations = lockdown_hospitalized)
+                                      %>% add_lines(x = t, 
+                                                    y = hospital_cap(),
+                                                    name = "Hospital Capcacity",
+                                                    line = list(width = 3,
+                                                                color = "#9932cc"),
+                                                     hoverinfo = 'text',
+                                                     text = ~paste('</br> Day: ', t,
+                                                                   '</br> Hospital Capacity: ', hospital_cap())),
+                                      nrows = 2,
+                                      shareX = TRUE,
+                                      titleY = TRUE
+                                      )
+     )
    })
 }
   shinyApp(ui, server)
