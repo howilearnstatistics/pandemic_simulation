@@ -1,0 +1,320 @@
+  library(shiny)
+  library(shinyWidgets)
+  library(plotly)
+  # Define UI for app that draws a histogram ----
+  ui <- fluidPage(
+    
+    # App title ----
+    titlePanel("Outbreak Simulation"),
+    
+    # Sidebar layout with input and output definitions ----
+    sidebarLayout(
+      
+      # Sidebar panel for inputs ----
+      sidebarPanel(
+        
+        # Input: Slider for the number of bins ----
+        numericInput(inputId = "n", 
+                     label = "Length of simulation (day)", 
+                     value = 365, 
+                     min = 0),
+        numericInput(inputId = "N", 
+                     label = "Population", 
+                     value = 10000, 
+                     min = 0),
+        numericInput(inputId = "init_infected", 
+                     label = "Initially infected", 
+                     value = 10, 
+                     min = 0),
+        numericRangeInput(inputId = "init_prevention", 
+                          label = "Intervention period", 
+                          value = c(30,120), 
+                          width = NULL, 
+                          separator = " to "),
+        sliderInput(inputId = "incubation",
+                    label = "Incubation length (day)",
+                    min = 1,
+                    max = 60,
+                    value = 14),
+        sliderInput(inputId = "infected_to_severity",
+                    label = "Days from infected to severity",
+                    min = 1,
+                    max = 60,
+                    value = 7),
+        sliderInput(inputId = "hospital_to_death",
+                    label = "Days from severity to death",
+                    min = 1,
+                    max = 60,
+                    value = 30),
+        sliderInput(inputId = "epsilon",
+                    label = "Probability of severity",
+                    min = 0,
+                    max = 1,
+                    value = 0.1),
+        numericInput(inputId = "hospital_cap", 
+                     label = "Hospital capacity", 
+                     value = 1000, 
+                     min = 0),
+        sliderInput("alpha", 
+                    label = "Fatality Probability (In the hospital)", 
+                    min = 0, 
+                    max = 1, 
+                    value = c(0.4, 0.6)),
+        numericInput(inputId = "non_severe_infection_length", 
+                     label = "Non severe cases infection length (day)", 
+                     value = 14, 
+                     min = 1),
+        numericInput(inputId = "severe_infection_length", 
+                     label = "Severe cases infection length (day)", 
+                     value = 14, 
+                     min = 1),
+        sliderInput(inputId = "R0",
+                    label = "Basic reproduction number (R0)",
+                    min = 0,
+                    max = 30,
+                    step = 0.1,
+                    value = c(2.5, 6)),
+        actionButton('sim','Launch simulation')
+      ),
+      
+      # Main panel for displaying outputs ----
+      mainPanel(
+        # Output: Plot
+       # plotlyOutput("summary")
+        plotlyOutput('SRF'),
+        plotlyOutput('IHE'),
+        plotlyOutput('IHD_new_case')
+      )
+    )
+  )
+  server <- function(input, output) {
+   delta            = reactive(1/input$incubation)                  #incubation period of 14 days
+   mu               = reactive(1/ input$infected_to_severity)       #severity rate 
+   epsilon          = reactive(input$epsilon)                       #severity probability
+   rho_hospital     = reactive(1/input$hospital_to_death)           #rate at which people die at the hospital 
+   hospital_cap     = reactive(input$hospital_cap)                  #hospital capacity
+   alpha_base       = reactive(min(input$alpha))                    #min fatality probability
+   alpha_max        = reactive(max(input$alpha))                    #max fatality probability
+   gamma_non_severe = reactive(1/input$severe_infection_length)     #recovery rate of n on severe cases
+   gamma_hospital   = reactive(1/input$non_severe_infection_length) #recovery rate at the hospital
+   x_0              = reactive(min(input$init_prevention))          #lockdown start date
+   x_1              = reactive(max(input$init_prevention))          #lockdown end date
+   n                = reactive(input$n)                             #simulation length
+   N                = reactive(input$N)                             #population
+   init_infected    = reactive(input$init_infected)                 #initially infected
+   R_0_start        = reactive(max(input$R0))                       #min R0
+   R_0_end          = reactive(min(input$R0))                       #max R0
+   observeEvent(input$sim, {
+     t = seq(1,n())
+     k = 0.7
+     R_0 = c()
+     R0_lockdown <- function(x){
+       return((R_0_start() - R_0_end())/(1 + exp(-k * (-x + x_0()))) + R_0_end())
+     }
+     R0_lift_lockdown <- function(x){
+       return((R_0_end() - R_0_start())/(1 + exp(-k * (-x + x_1() + 10))) + R_0_start())
+     }
+     #non constant parameters
+     R_0[c(1:x_1()-1)] = R0_lockdown(c(1:x_1()-1)) #R0 as a variable dependent on time
+     R_0[c(x_1():n())] = R0_lift_lockdown(c(x_1():n())) #R0 as a variable dependent on time
+     beta = R_0 * gamma_non_severe() #transmission rate 
+     #time step
+     step = 1
+     
+     S = c() #susceptible  
+     E = c() #exposed  
+     I = c() #infected
+     SE = c() #severity 
+     R = c() #recovery  
+     D = c() #death  
+     H = c() #hospitalized  
+     alpha = c()
+     
+     D_perday = c() #death per day
+     I_perday = c() #Infected per day
+     H_perday = c() #Hospitalised per day
+     
+     I[1]  = init_infected()
+     S[1]  = N() - I[1]
+     R[1]  = 0
+     SE[1] = 0
+     E[1]  = 0
+     D[1]  = 0
+     H[1]  = 0
+     
+     D_perday[1] = 0 #death per day
+     I_perday[1] = I[1] #Infected per day
+     H_perday[1] = 0 #Hospitalized per day
+     
+     I_cumulate = 0
+     H_cumulate = 0
+     D_cumulate = 0
+     alpha[1]   = alpha_base()
+     
+     for (i in 2:n()){
+       if(H[i-1] <= hospital_cap()){
+         alpha[i] = alpha_base()
+       }
+       else{
+         temp = alpha_base() + 0.0005 * (H[i-1] - hospital_cap())
+         if (temp < alpha_max()){
+           alpha[i] = temp
+         }
+         else{
+           alpha[i] = alpha_max()
+         } 
+       }
+       S[i] = S[i-1] + step*(-beta[i] * S[i-1] * I[i-1])/N() 
+       E[i] = E[i-1] + step*(beta[i] * S[i-1] * I[i-1] / N() 
+                             -delta() * E[i-1])
+       I[i] = I[i-1] + step*(-mu() * epsilon() * I[i-1] 
+                             -gamma_non_severe() * (1 - epsilon()) * I [i-1] 
+                             + delta() * E[i-1])
+       H[i] = H[i-1] + step*(-gamma_hospital() * (1 - alpha[i]) * H[i-1]
+                             -rho_hospital() * alpha[i] * H[i-1]
+                             +mu() * epsilon() * I[i-1] )
+       D[i] = D[i-1] + step*(+alpha[i] * rho_hospital() * H[i-1])
+       R[i] = R[i-1] + step*(+gamma_hospital() * (1 - alpha[i]) * H[i-1] 
+                             +gamma_non_severe() * (1 - epsilon()) * I [i-1])
+       #
+       I_perday[i] = delta() * E[i-1] #cumulative number of infected people
+       H_perday[i] = mu() * epsilon() * I[i-1] #cumulative number of hospitalized people
+       D_perday[i] = alpha[i] * rho_hospital() * H[i-1] #cumulative number of dead people
+       #
+       I_cumulate = I_cumulate + delta() * E[i-1] #cumulative number of infected people
+       H_cumulate = H_cumulate + mu() * epsilon() * I[i-1] #cumulative number of hospitalized people
+       D_cumulate = D_cumulate + alpha[i] * rho_hospital() * H[i-1] #cumulative number of dead people
+     }
+     #plot parameters
+     f = list(
+       family = "Courier New, monospace",
+       size = 18,
+       color = "#00008b"
+     )
+     x_SRF = list(title = "Time (day)",
+                  titlefont = f)
+     y_SRF = list(title = "Population",
+                  titlefont = f)
+     lockdown_IHE = list(
+       x = c(x_0(), x_1()),
+       y = c(E[x_0()], E[x_1()]),
+       text = c("Lockdown start", "Lockdown end"),
+       xref = "x",
+       yref = "y",
+       showarrow = TRUE,
+       arrowhead = 7,
+       ax = -20,
+       ay = -40
+     )
+     x_IHE = list(title = "Time (day)",
+                  titlefont = f)
+     y_IHE = list(title = "Active Cases",
+                  titlefont = f)
+     x_IHD_new_case = list(title = "Time (day)",
+                            titlefont = f)
+     y_IHD_new_case = list(title = "New Cases",
+                            titlefont = f)
+     lockdown_IHD_new_case = list(
+       x = c(x_0(), x_1()),
+       y = c(I_perday[x_0()], I_perday[x_1()]),
+       text = c("Lockdown start", "Lockdown end"),
+       xref = "x",
+       yref = "y",
+       showarrow = TRUE,
+       arrowhead = 7,
+       ax = -20,
+       ay = -40
+     )
+     #plot
+     output$SRF = renderPlotly(plot_ly(x = ~t, 
+                               y = ~S, 
+                               name = "Susceptible",
+                               type = 'scatter',
+                               mode = 'lines',
+                               line = list(width = 3,
+                                           color = "#0000ff"),
+                               hoverinfo = 'text',
+                               text = ~paste('</br> Day: ', t,
+                                             '</br> Number of Susceptible: ', round(S)))
+                               %>% add_trace(y = ~R,
+                                             name = "Recovered",
+                                             mode = "lines",
+                                             line = list(width = 3,
+                                             color = "#008000"),
+                                             text = ~paste('</br> Day: ', t,
+                                                           '</br> Number of Recovered: ', round(R)))
+                               %>% add_trace(y = ~D,
+                                             name = "Fatality",
+                                             mode = "lines",
+                                             line = list(width = 3,
+                                             color = "#000000"),
+                                             text = ~paste('</br> Day: ', t,
+                                                           '</br> Number of Fatality: ', round(D)))
+                               %>% layout(xaxis = x_SRF,
+                                          yaxis = y_SRF,
+                                          hovermode = 'x'))
+     output$IHE = renderPlotly(plot_ly(x = ~t, 
+                                       y = ~I, 
+                                       name = "Infected",
+                                       type = 'scatter',
+                                       mode = 'lines',
+                                       line = list(width = 3,
+                                                   color = "#ffa500"),
+                                       hoverinfo = 'text',
+                                       text = ~paste('</br> Day: ', t,
+                                                     '</br> Number of Infected: ', round(I)))
+                               %>% add_trace(y = ~H,
+                                             name = "Hospitalized",
+                                             mode = "lines",
+                                             line = list(width = 3,
+                                                         color = "#00ffff"),
+                                             text = ~paste('</br> Day: ', t,
+                                                           '</br> Number of Hospitalised: ', round(H)))
+                               %>% add_trace(y = ~E,
+                                             name = "Exposed",
+                                             mode = "lines",
+                                             line = list(width = 3,
+                                                         color = "#ff7f50"),
+                                                         text = ~paste('</br> Day: ', t,
+                                                                       '</br> Number of Exposed: ', round(E)))
+                               %>% layout(xaxis = x_IHE,
+                                          yaxis = y_IHE,
+                                          annotations = lockdown_IHE,
+                                          hovermode = 'x'))
+     output$IHD_new_case = renderPlotly(plot_ly(x = ~t, 
+                                                y = ~I_perday, 
+                                                type = 'scatter',
+                                                mode = "line",
+                                                name = 'New Infected',
+                                                color = "red",
+                                                line = list(width = 3,
+                                                            color = "#ffa500"),
+                                                hoverinfo = 'text',
+                                                text = ~paste('</br> Day: ', t,
+                                                              '</br> New Infected: ', round(I_perday)),
+                                                showlegend = TRUE)
+                                          %>% add_trace(y = ~H_perday, 
+                                                        name = 'New Hospitalized',
+                                                        color = "purple",
+                                                        line = list(width = 3,
+                                                                    color = "#00ffff"),
+                                                        hoverinfo = 'text',
+                                                        text = ~paste('</br> Day: ', t,
+                                                                      '</br> New Hospitalised: ', round(H_perday)),
+                                                         showlegend = TRUE)
+                                          %>% add_trace(y = ~D_perday, 
+                                                        name = 'New Fatality',
+                                                        color = "green",
+                                                        line = list(width = 3,
+                                                                    color = "#000000"),
+                                                        hoverinfo = 'text',
+                                                        text = ~paste('</br> Day: ', t,
+                                                                      '</br> New Fatality: ', round(D_perday)),
+                                                           showlegend = TRUE)
+                                          %>% layout(xaxis = x_IHD_new_case,
+                                                      yaxis = y_IHD_new_case,
+                                                      annotations = lockdown_IHD_new_case,
+                                                      hovermode = 'x'))
+   })
+}
+  shinyApp(ui, server)
