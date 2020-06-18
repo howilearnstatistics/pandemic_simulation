@@ -85,7 +85,7 @@
                     tabPanel("Summary", plotlyOutput('SRF'),
                                         plotlyOutput('IHE'),
                                         plotlyOutput('IHD_new_case')),
-                    tabPanel("Infected"),
+                    tabPanel("Infected", plotlyOutput("I")),
                     tabPanel("Hospitalized"),
                     tabPanel("Fatality"),
                     tabPanel("Statistics")
@@ -141,6 +141,8 @@
      I_perday = c() #Infected per day
      H_perday = c() #Hospitalised per day
      
+     I_difference = c()
+     
      I[1]  = init_infected()
      S[1]  = N() - I[1]
      R[1]  = 0
@@ -148,6 +150,8 @@
      E[1]  = 0
      D[1]  = 0
      H[1]  = 0
+     
+     I_difference[1] = 0
      
      D_perday[1] = 0 #death per day
      I_perday[1] = I[1] #Infected per day
@@ -191,6 +195,8 @@
        I_cumulate = I_cumulate + delta() * E[i-1] #cumulative number of infected people
        H_cumulate = H_cumulate + mu() * epsilon() * I[i-1] #cumulative number of hospitalized people
        D_cumulate = D_cumulate + alpha[i] * rho_hospital() * H[i-1] #cumulative number of dead people
+       #
+       I_difference[i] = (round(I[i] - I[i-1])) * 100 / round(I[i-1]) 
      }
      #plot parameters
      f = list(
@@ -322,6 +328,28 @@
                                                       yaxis = y_IHD_new_case,
                                                       annotations = lockdown_IHD_new_case,
                                                       hovermode = 'x'))
+     output$I = renderPlotly(subplot(plot_ly(x = ~t, 
+                                             y = ~I, 
+                                             name = "Infected",
+                                             type = 'scatter',
+                                             mode = 'lines',
+                                             line = list(width = 3,
+                                                         color = "#ffa500"),
+                                             hoverinfo = 'text',
+                                             text = ~paste('</br> Day: ', t,
+                                                           '</br> Number of Infected: ', round(I))),
+                                     plot_ly(x = ~t, 
+                                             y = ~I_difference, 
+                                             name = "Percent change",
+                                             type = 'bar',
+                                             hoverinfo = 'text',
+                                             text = ~paste('</br> Day: ', t,
+                                                           '</br> Percent change: ', round(I_difference, 2),"%")),
+                                     nrows = 2,
+                                     shareX = TRUE,
+                                     titleY = TRUE
+                                     )
+                             )
    })
 }
   shinyApp(ui, server)
