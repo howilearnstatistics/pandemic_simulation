@@ -74,7 +74,7 @@ server <- function(input, output) {
         alpha[i] = alpha_base()
       }
       else{
-        temp = alpha_base() + 0.0005 * (H[i-1] - hospital_cap())
+        temp = alpha_base() + 0.000009 * (H[i-1] - hospital_cap())
         if (temp < alpha_max()){
           alpha[i] = temp
         }
@@ -200,7 +200,20 @@ server <- function(input, output) {
                                                           '</br> Number of Fatality: ', round(D)))
                               %>% layout(xaxis = x_SRF,
                                          yaxis = y_SRF,
-                                         hovermode = 'x'))
+                                         hovermode = 'x',
+                                         showlegend = FALSE)
+                              %>% config(modeBarButtonsToRemove = c("zoomInGeo",
+                                                                    "zoomOutGeo",
+                                                                    "hoverClosestGeo",
+                                                                    'hoverClosestCartesian',
+                                                                    "select2d",
+                                                                    "lasso2d",
+                                                                    "toImage",
+                                                                    "pan2d",
+                                                                    'toggleSpikelines',
+                                                                    'hoverCompareCartesian')
+                                         )
+                              )
     output$IHE = renderPlotly(plot_ly(x = ~t, 
                                       y = ~I, 
                                       name = "Infected",
@@ -228,7 +241,20 @@ server <- function(input, output) {
                               %>% layout(xaxis = x_IHE,
                                          yaxis = y_IHE,
                                          annotations = lockdown_IHE,
-                                         hovermode = 'x'))
+                                         hovermode = 'x',
+                                         showlegend = FALSE)
+                              %>% config(modeBarButtonsToRemove = c("zoomInGeo",
+                                                                    "zoomOutGeo",
+                                                                    "hoverClosestGeo",
+                                                                    'hoverClosestCartesian',
+                                                                    "select2d",
+                                                                    "lasso2d",
+                                                                    "toImage",
+                                                                    "pan2d",
+                                                                    'toggleSpikelines',
+                                                                    'hoverCompareCartesian')
+                                         )
+                              )
     output$IHD_new_case = renderPlotly(plot_ly(x = ~t, 
                                                y = ~I_perday, 
                                                type = 'scatter',
@@ -240,7 +266,7 @@ server <- function(input, output) {
                                                hoverinfo = 'text',
                                                text = ~paste('</br> Day: ', t,
                                                              '</br> New Infected: ', round(I_perday)),
-                                               showlegend = TRUE)
+                                               showlegend = FALSE)
                                        %>% add_trace(y = ~H_perday, 
                                                      name = 'New Hospitalized',
                                                      color = "purple",
@@ -249,7 +275,7 @@ server <- function(input, output) {
                                                      hoverinfo = 'text',
                                                      text = ~paste('</br> Day: ', t,
                                                                    '</br> New Hospitalised: ', round(H_perday)),
-                                                     showlegend = TRUE)
+                                                     showlegend = FALSE)
                                        %>% add_trace(y = ~D_perday, 
                                                      name = 'New Fatality',
                                                      color = "green",
@@ -258,98 +284,167 @@ server <- function(input, output) {
                                                      hoverinfo = 'text',
                                                      text = ~paste('</br> Day: ', t,
                                                                    '</br> New Fatality: ', round(D_perday)),
-                                                     showlegend = TRUE)
+                                                     showlegend = FALSE)
                                        %>% layout(xaxis = x_IHD_new_case,
                                                   yaxis = y_IHD_new_case,
                                                   annotations = lockdown_IHD_new_case,
-                                                  hovermode = 'x'))
-    output$pie = renderPlotly(plot_ly(labels = population_label, 
-                                      values = population_value,
-                                      type = 'pie',
-                                      textinfo ='label+percent',
-                                      insidetextorientation ='radial',
-                                      hoverinfo = 'text',
-                                      text = ~paste('</br> Status: ', population_label,
-                                                    '</br> Number: ', population_value),
-                                      marker = list(colors = c("#ffa500","#0000ff"),
-                                                    line = list(color = '#FFFFFF', 
-                                                                width = 1)),
-                                      domain = list(x = c(0, 0.6), 
-                                                    y = c(0, 1)),
-                                      showlegend = FALSE,
-                                      title = list(text = 'Breakdown of the Population', 
-                                                   y = -1, 
-                                                   font = f))
-                              %>% add_pie(labels = infected_label, 
-                                          values = infected_value, 
-                                          textinfo ='label+percent',
-                                          insidetextorientation ='radial',
-                                          hoverinfo = 'text',
-                                          text = ~paste('</br> Status: ', infected_label,
-                                                        '</br> Number: ', infected_value),
-                                          marker = list(colors = c("#00ffff","#008000"),
-                                                        line = list(color = '#FFFFFF', 
-                                                                    width = 1)),
-                                          domain = list(x = c(0.6, 1), 
-                                                        y = c(0.3, 1)),
-                                          showlegend = FALSE,
-                                          title = list(text = 'Breakdown of the Infected', 
-                                                       y = 0.8, 
-                                                       font = f))
-                              %>% add_pie(labels = hospital_label, 
-                                          values = hospital_value, 
-                                          textinfo ='label+percent',
-                                          insidetextorientation ='radial',
-                                          hoverinfo = 'text',
-                                          text = ~paste('</br> Status: ', hospital_label,
-                                                        '</br> Number: ', hospital_value),
-                                          marker = list(colors = c("#000000", "#008000"),
-                                                        line = list(color = '#FFFFFF', 
-                                                                    width = 1)),
-                                          domain = list(x = c(0.6, 1), 
-                                                        y = c(0.0, 0.3)),
-                                          showlegend = FALSE,
-                                          title = list(text = 'Breakdown of the Hospitalised', 
-                                                       font = f)))
-    output$death_rate = renderPlotly(subplot(
-      plot_ly(x = ~t, 
-              y = ~alpha, 
-              type = "scatter",
-              mode = "line",
-              name = "Fatality probability (in hospital)",
-              line = list(width = 3),
-              hoverinfo = 'text',
-              text = ~paste('</br> Day: ', t,
-                            '</br> Fatality probability: ', round(alpha, 3)))
-      %>% layout(xaxis = x_death_rate,
-                 yaxis = y_death_rate,
-                 hovermode = 'x'),
-      plot_ly(x = ~t, 
-              y = ~H, 
-              name = "Hospitalised",
-              type = 'scatter',
-              mode = 'lines',
-              line = list(width = 3,
-                          color = "#00ffff"),
-              hoverinfo = 'text',
-              text = ~paste('</br> Day: ', t,
-                            '</br> Hospitalised: ', round(H)))
-      %>% layout(xaxis = x_hospitalized,
-                 yaxis = y_hospitalized,
-                 hovermode = 'x',
-                 annotations = lockdown_hospitalized)
-      %>% add_lines(x = t, 
-                    y = hospital_cap(),
-                    name = "Hospital Capcacity",
-                    line = list(width = 3,
-                                color = "#9932cc"),
-                    hoverinfo = 'text',
-                    text = ~paste('</br> Day: ', t,
-                                  '</br> Hospital Capacity: ', hospital_cap())),
-      nrows = 2,
-      shareX = TRUE,
-      titleY = TRUE
+                                                  hovermode = 'x')
+                                       %>% config(modeBarButtonsToRemove = c("zoomInGeo",
+                                                                             "zoomOutGeo",
+                                                                             "hoverClosestGeo",
+                                                                             'hoverClosestCartesian',
+                                                                             "select2d",
+                                                                             "lasso2d",
+                                                                             "toImage",
+                                                                             "pan2d",
+                                                                             'toggleSpikelines',
+                                                                             'hoverCompareCartesian')))
+    output$infected = renderValueBox( 
+      valueBox(
+        prettyNum(population_value[1],
+                  big.mark = ","), 
+        width = 2, 
+        icon = icon("<abacus"),
+        subtitle = "Total Infected",
+        color = I("orange")       
+      )
     )
+    
+    output$hospital = renderValueBox( 
+      valueBox(
+        prettyNum(infected_value[1],
+                  big.mark = ","), 
+        width = 2, 
+        icon = icon("<abacus"),
+        subtitle = "Hospitalized",
+        color = I("blue")       
+      )
     )
-  })
+    
+    output$recovered = renderValueBox( 
+      valueBox(
+        prettyNum(infected_value[2] + hospital_value[2],
+                  big.mark = ","), 
+        width = 2, 
+        icon = icon("<abacus"),
+        subtitle = "Recovered",
+        color = I("green")       
+      )
+    )
+    
+    output$death = renderValueBox( 
+      valueBox(
+        prettyNum(hospital_value[1],
+                  big.mark = ","), 
+        width = 2, 
+        icon = icon("<abacus"),
+        subtitle = "Total Fatality",
+        color = I("black")       
+      )
+    )
+    
+    output$pie1 = renderPlotly(
+      plot_ly(labels = population_label, 
+              values = population_value,
+              type = 'pie',
+              textinfo ='label+percent',
+              insidetextorientation ='radial',
+              hoverinfo = 'text',
+              text = ~paste('</br> Status: ', population_label,
+                            '</br> Number: ', population_value),
+              marker = list(colors = c("#ffa500","#0000ff"),
+                            line = list(color = '#FFFFFF', 
+                                        width = 1)),
+              domain = list(x = c(0, 0.6), 
+                            y = c(0, 1)),
+              showlegend = FALSE,
+              title = list(text = 'Breakdown of the Population', 
+                           y = -1, 
+                           font = f))
+      %>% add_pie(labels = infected_label, 
+                  values = infected_value, 
+                  textinfo ='label+percent',
+                  insidetextorientation ='radial',
+                  hoverinfo = 'text',
+                  text = ~paste('</br> Status: ', infected_label,
+                                '</br> Number: ', infected_value),
+                  marker = list(colors = c("#00ffff","#008000"),
+                                line = list(color = '#FFFFFF', 
+                                            width = 1)),
+                  domain = list(x = c(0.6, 1), 
+                                y = c(0.3, 1)),
+                  showlegend = FALSE,
+                  title = list(text = 'Breakdown of the Infected', 
+                               y = 0.8, 
+                               font = f))
+      %>% add_pie(labels = hospital_label, 
+                  values = hospital_value, 
+                  textinfo ='label+percent',
+                  insidetextorientation ='radial',
+                  hoverinfo = 'text',
+                  text = ~paste('</br> Status: ', hospital_label,
+                                '</br> Number: ', hospital_value),
+                  marker = list(colors = c("#000000", "#008000"),
+                                line = list(color = '#FFFFFF', 
+                                            width = 1)),
+                  domain = list(x = c(0.6, 1), 
+                                y = c(0.0, 0.3)),
+                  showlegend = FALSE,
+                  title = list(text = 'Breakdown of the Hospitalised', 
+                               font = f))
+    )
+    output$death_rate = renderPlotly(
+      subplot(
+        plot_ly(x = ~t, 
+                y = ~alpha, 
+                type = "scatter",
+                mode = "line",
+                name = "Fatality probability (in hospital)",
+                line = list(width = 3),
+                hoverinfo = 'text',
+                text = ~paste('</br> Day: ', t,
+                              '</br> Fatality probability: ', round(alpha, 3)))
+        %>% layout(xaxis = x_death_rate,
+                   yaxis = y_death_rate,
+                   hovermode = 'x'),
+        plot_ly(x = ~t, 
+                y = ~H, 
+                name = "Hospitalised",
+                type = 'scatter',
+                mode = 'lines',
+                line = list(width = 3,
+                            color = "#00ffff"),
+                hoverinfo = 'text',
+                text = ~paste('</br> Day: ', t,
+                              '</br> Hospitalised: ', round(H)))
+        %>% layout(xaxis = x_hospitalized,
+                   yaxis = y_hospitalized,
+                   hovermode = 'x',
+                   annotations = lockdown_hospitalized,
+                   showlegend = FALSE)
+        %>% add_lines(x = t, 
+                      y = hospital_cap(),
+                      name = "Hospital Capcacity",
+                      line = list(width = 3,
+                                  color = "#9932cc"),
+                      hoverinfo = 'text',
+                      text = ~paste('</br> Day: ', t,
+                                    '</br> Hospital Capacity: ', hospital_cap()))
+        %>% config(modeBarButtonsToRemove = c("zoomInGeo",
+                                              "zoomOutGeo",
+                                              "hoverClosestGeo",
+                                              'hoverClosestCartesian',
+                                              "select2d",
+                                              "lasso2d",
+                                              "toImage",
+                                              "pan2d",
+                                              'toggleSpikelines',
+                                              'hoverCompareCartesian'),
+                   displaylogo = FALSE),
+        nrows = 2,
+        shareX = TRUE,
+        titleY = TRUE
+        )
+      )
+    })
 }

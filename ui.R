@@ -1,18 +1,14 @@
 library(shiny)
 library(plotly)
 library(shinyWidgets)
-ui <- fluidPage(
-  
-  # App title ----
-  titlePanel("Outbreak Simulation"),
-  
-  # Sidebar layout with input and output definitions ----
-  sidebarLayout(
-    
-    # Sidebar panel for inputs ----
-    sidebarPanel(
-      
-      # Input: Slider for the number of bins ----
+library(shinydashboard)
+
+
+body_colwise <- dashboardBody(
+  fluidRow(
+    box(
+      width = 3,
+      height = 320,
       numericInput(inputId = "n", 
                    label = "Length of simulation (day)", 
                    value = 365, 
@@ -29,7 +25,11 @@ ui <- fluidPage(
                         label = "Intervention period", 
                         value = c(30,90), 
                         width = NULL, 
-                        separator = " to "),
+                        separator = " to ")
+        ),
+    box(
+      width = 3,
+      height = 320,
       sliderInput(inputId = "incubation",
                   label = "Incubation length (day)",
                   min = 1,
@@ -44,7 +44,11 @@ ui <- fluidPage(
                   label = "Days from severity to death",
                   min = 1,
                   max = 60,
-                  value = 14),
+                  value = 14)
+      ),
+    box(
+      width = 3,
+      height = 320,
       sliderInput(inputId = "epsilon",
                   label = "Probability of severity",
                   min = 0,
@@ -58,7 +62,11 @@ ui <- fluidPage(
                   label = "Fatality Probability (In the hospital)", 
                   min = 0, 
                   max = 1, 
-                  value = c(0.4, 0.6)),
+                  value = c(0.4, 0.6))
+      ),
+    box(
+      width = 3,
+      height = 320,
       numericInput(inputId = "non_severe_infection_length", 
                    label = "Non severe cases infection length (day)", 
                    value = 14, 
@@ -74,19 +82,37 @@ ui <- fluidPage(
                   step = 0.1,
                   value = c(0.3, 6)),
       actionButton('sim','Launch simulation')
+      )
     ),
-    
-    # Main panel for displaying outputs ----
-    mainPanel(
-      # Output: Plot
-      # plotlyOutput("summary")
-      tabsetPanel(type = "tabs",
-                  tabPanel("Summary", plotlyOutput('SRF'),
-                           plotlyOutput('IHE'),
-                           plotlyOutput('IHD_new_case')),
-                  tabPanel("Statistics", plotlyOutput("pie")),
-                  tabPanel("Death rate", plotlyOutput("death_rate"))
+  fluidRow(
+    valueBoxOutput("infected", width = 3),
+    valueBoxOutput("recovered", width = 3),
+    valueBoxOutput("hospital", width = 3),
+    valueBoxOutput("death", width = 3)
+  ),
+  fluidRow(
+    box(
+      width = 6,
+      plotlyOutput("SRF")
+      ),
+    box(
+      width = 6,
+      plotlyOutput("IHE")
+      )
+    ),
+  fluidRow(
+    box(
+      plotlyOutput("IHD_new_case")
+      ),
+    box(
+      plotlyOutput("death_rate")
       )
     )
   )
+
+
+ui <- dashboardPage(
+  dashboardHeader(disable = TRUE),
+  dashboardSidebar(disable = TRUE),
+  body_colwise
 )
